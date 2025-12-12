@@ -24,4 +24,5 @@ src/ompl/control/planners/syclop/Syclop.h
 src/ompl/control/planners/syclop/SyclopEST.h
 src/ompl/control/planners/syclop/SyclopRRT.h
 src/ompl/control/planners/sst/SST.h
+src/ompl/control/planners/sst/SteeredSST.h
 py-bindings/ompl_py_control.h
