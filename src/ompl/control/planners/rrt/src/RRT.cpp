@@ -130,9 +130,11 @@ ompl::base::PlannerStatus ompl::control::RRT::solve(const base::PlannerTerminati
     {
         /* sample random state (with goal biasing) */
         if (goal_s && rng_.uniform01() < goalBias_ && goal_s->canSample())
-            goal_s->sampleGoal(rstate);
+            goal_s->sampleGoal(xstate);
         else
-            sampler_->sampleUniform(rstate);
+            sampler_->sampleUniform(xstate);
+
+        si_->copyState(rstate, xstate);
 
         /* find closest state in the tree */
         Motion *nmotion = nn_->nearest(rmotion);
@@ -140,32 +142,73 @@ ompl::base::PlannerStatus ompl::control::RRT::solve(const base::PlannerTerminati
         /* sample a random control that attempts to go towards the random state, and also sample a control duration */
         unsigned int cd = controlSampler_->sampleTo(rctrl, nmotion->control, nmotion->state, rmotion->state);
 
-        if (addIntermediateStates_)
+        while (cd >= siC_->getMinControlDuration() && distanceFunction(nmotion, rmotion) >= minDist_)
         {
-            // this code is contributed by Jennifer Barry
-            std::vector<base::State *> pstates;
-            cd = siC_->propagateWhileValid(nmotion->state, rctrl, cd, pstates, true);
-
-            if (cd >= siC_->getMinControlDuration())
+            if (addIntermediateStates_)
             {
-                Motion *lastmotion = nmotion;
-                bool solved = false;
-                size_t p = 0;
-                for (; p < pstates.size(); ++p)
+                // this code is contributed by Jennifer Barry
+                std::vector<base::State *> pstates;
+                cd = siC_->propagateWhileValid(nmotion->state, rctrl, cd, pstates, true);
+
+                if (cd >= siC_->getMinControlDuration())
+                {
+                    Motion *lastmotion = nmotion;
+                    bool solved = false;
+                    size_t p = 0;
+                    for (; p < pstates.size(); ++p)
+                    {
+                        /* create a motion */
+                        auto *motion = new Motion();
+                        motion->state = pstates[p];
+                        // we need multiple copies of rctrl
+                        motion->control = siC_->allocControl();
+                        siC_->copyControl(motion->control, rctrl);
+                        motion->steps = 1;
+                        motion->parent = lastmotion;
+                        lastmotion = motion;
+                        nn_->add(motion);
+                        nmotion = motion;
+                        double dist = 0.0;
+                        solved = goal->isSatisfied(motion->state, &dist);
+                        if (solved)
+                        {
+                            approxdif = dist;
+                            solution = motion;
+                            break;
+                        }
+                        if (dist < approxdif)
+                        {
+                            approxdif = dist;
+                            approxsol = motion;
+                        }
+                    }
+
+                    // free any states after we hit the goal
+                    while (++p < pstates.size())
+                        si_->freeState(pstates[p]);
+                    if (solved)
+                        break;
+                }
+                else
+                    for (auto &pstate : pstates)
+                        si_->freeState(pstate);
+            }
+            else
+            {
+                if (cd >= siC_->getMinControlDuration())
                 {
                     /* create a motion */
-                    auto *motion = new Motion();
-                    motion->state = pstates[p];
-                    // we need multiple copies of rctrl
-                    motion->control = siC_->allocControl();
+                    auto *motion = new Motion(siC_);
+                    si_->copyState(motion->state, rmotion->state);
                     siC_->copyControl(motion->control, rctrl);
-                    motion->steps = 1;
-                    motion->parent = lastmotion;
-                    lastmotion = motion;
+                    motion->steps = cd;
+                    motion->parent = nmotion;
+
                     nn_->add(motion);
+                    nmotion = motion;
                     double dist = 0.0;
-                    solved = goal->isSatisfied(motion->state, &dist);
-                    if (solved)
+                    bool solv = goal->isSatisfied(motion->state, &dist);
+                    if (solv)
                     {
                         approxdif = dist;
                         solution = motion;
@@ -177,44 +220,12 @@ ompl::base::PlannerStatus ompl::control::RRT::solve(const base::PlannerTerminati
                         approxsol = motion;
                     }
                 }
-
-                // free any states after we hit the goal
-                while (++p < pstates.size())
-                    si_->freeState(pstates[p]);
-                if (solved)
-                    break;
             }
-            else
-                for (auto &pstate : pstates)
-                    si_->freeState(pstate);
+            si_->copyState(rstate, xstate);
+            cd = controlSampler_->sampleTo(rctrl, nmotion->control, nmotion->state, rmotion->state);
         }
-        else
-        {
-            if (cd >= siC_->getMinControlDuration())
-            {
-                /* create a motion */
-                auto *motion = new Motion(siC_);
-                si_->copyState(motion->state, rmotion->state);
-                siC_->copyControl(motion->control, rctrl);
-                motion->steps = cd;
-                motion->parent = nmotion;
-
-                nn_->add(motion);
-                double dist = 0.0;
-                bool solv = goal->isSatisfied(motion->state, &dist);
-                if (solv)
-                {
-                    approxdif = dist;
-                    solution = motion;
-                    break;
-                }
-                if (dist < approxdif)
-                {
-                    approxdif = dist;
-                    approxsol = motion;
-                }
-            }
-        }
+        if (solution)
+            break;
     }
 
     bool solved = false;

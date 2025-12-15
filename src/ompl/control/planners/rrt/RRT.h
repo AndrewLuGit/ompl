@@ -110,6 +110,19 @@ namespace ompl
                 addIntermediateStates_ = addIntermediateStates;
             }
 
+            /** \brief Set minimum distance for expansion. RRT will continue expanding towards a sampled state until
+             * the expanded state is less than minDist away from the previous state */
+            void setMinDist(double minDist)
+            {
+                minDist_ = minDist;
+            }
+
+            /** \brief Get the minimum distance for expansion used by the planner. */
+            double getMinDist() const
+            {
+                return minDist_;
+            }
+
             void getPlannerData(base::PlannerData &data) const override;
 
             /** \brief Set a different nearest neighbors datastructure */
@@ -183,6 +196,9 @@ namespace ompl
 
             /** \brief Flag indicating whether intermediate states are added to the built tree of motions */
             bool addIntermediateStates_{false};
+
+            /** \brief Minimum distance for extensions */
+            double minDist_{0.05};
 
             /** \brief The random number generator */
             RNG rng_;
