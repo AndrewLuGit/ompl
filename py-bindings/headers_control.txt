@@ -18,6 +18,7 @@ src/ompl/control/planners/est/EST.h
 src/ompl/control/planners/kpiece/KPIECE1.h
 src/ompl/control/planners/pdst/PDST.h
 src/ompl/control/planners/rrt/RRT.h
+src/ompl/control/planners/rrt/RRTConnect.h
 src/ompl/control/planners/syclop/Decomposition.h
 src/ompl/control/planners/syclop/GridDecomposition.h
 src/ompl/control/planners/syclop/Syclop.h

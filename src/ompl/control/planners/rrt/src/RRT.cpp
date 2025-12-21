@@ -221,6 +221,8 @@ ompl::base::PlannerStatus ompl::control::RRT::solve(const base::PlannerTerminati
                     }
                 }
             }
+            if (minDist_ <= 0)
+                break;
             si_->copyState(rstate, xstate);
             cd = controlSampler_->sampleTo(rctrl, nmotion->control, nmotion->state, rmotion->state);
         }
